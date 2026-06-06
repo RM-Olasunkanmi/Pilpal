@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pilpal — Medication Research Survey</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --glass-bg:rgba(255,255,255,0.065);
+  --glass-border:rgba(255,255,255,0.14);
+  --glass-shadow:rgba(0,0,0,0.45);
+  --accent:#00d4aa;
+  --accent-dim:rgba(0,212,170,0.13);
+  --accent-glow:rgba(0,212,170,0.32);
+  --accent2:#0099ff;
+  --text-primary:#eef2ff;
+  --text-secondary:rgba(238,242,255,0.62);
+  --text-muted:rgba(238,242,255,0.32);
+  --input-bg:rgba(255,255,255,0.055);
+  --input-border:rgba(255,255,255,0.11);
+  --error:#ff6b6b;
+  --divider:rgba(255,255,255,0.07);
+}
+html,body{min-height:100vh;font-family:'Poppins',sans-serif;color:var(--text-primary);overflow-x:hidden}
+body{background:#020c1a;display:flex;align-items:flex-start;justify-content:center;padding:2.5rem 1rem 4rem;position:relative}
+
+/* ── background ── */
+.bg-grad{position:fixed;inset:0;z-index:0;background:linear-gradient(135deg,#020c1a 0%,#041e35 25%,#062445 50%,#031c2d 75%,#020c1a 100%);background-size:400% 400%;animation:gs 20s ease infinite}
+@keyframes gs{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+.orb{position:fixed;border-radius:50%;filter:blur(90px);pointer-events:none;z-index:0;animation:orb linear infinite}
+.o1{width:520px;height:520px;background:#00d4aa;opacity:.14;top:-120px;left:-160px;animation-duration:30s}
+.o2{width:380px;height:380px;background:#0055ff;opacity:.12;top:38%;right:-110px;animation-duration:24s;animation-delay:-8s}
+.o3{width:300px;height:300px;background:#7b2fff;opacity:.11;bottom:-90px;left:28%;animation-duration:38s;animation-delay:-16s}
+.o4{width:220px;height:220px;background:#00d4aa;opacity:.08;bottom:18%;right:18%;animation-duration:22s;animation-delay:-5s}
+@keyframes orb{0%{transform:translate(0,0) scale(1)}25%{transform:translate(28px,-38px) scale(1.05)}50%{transform:translate(-18px,28px) scale(.97)}75%{transform:translate(36px,18px) scale(1.03)}100%{transform:translate(0,0) scale(1)}}
+
+/* ── glass card ── */
+.glass-card{position:relative;z-index:10;width:100%;max-width:640px;background:var(--glass-bg);backdrop-filter:blur(28px) saturate(170%);-webkit-backdrop-filter:blur(28px) saturate(170%);border:1px solid var(--glass-border);border-radius:26px;padding:2.75rem 2.75rem 2.2rem;box-shadow:0 10px 40px var(--glass-shadow),0 0 0 1px rgba(255,255,255,0.035) inset,0 1px 0 rgba(255,255,255,0.09) inset;animation:cardIn .65s cubic-bezier(.22,1,.36,1) both}
+@keyframes cardIn{from{opacity:0;transform:translateY(28px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+
+/* ── header ── */
+.logo-row{display:flex;align-items:center;gap:11px;margin-bottom:.2rem}
+.logo-pill{width:38px;height:38px;background:linear-gradient(135deg,#00d4aa,#0099ff);border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:19px;box-shadow:0 0 18px var(--accent-glow);flex-shrink:0}
+.logo-name{font-size:1.35rem;font-weight:700;letter-spacing:-.025em;background:linear-gradient(90deg,#fff,#00d4aa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.logo-tagline{font-size:.75rem;color:var(--text-muted);margin-bottom:.9rem;letter-spacing:.01em}
+.form-intro{background:rgba(0,212,170,.07);border:1px solid rgba(0,212,170,.18);border-radius:12px;padding:1rem 1.1rem;margin-bottom:1.75rem}
+.form-intro-title{font-size:.82rem;font-weight:600;color:var(--accent);margin-bottom:.35rem;letter-spacing:.01em}
+.form-intro-body{font-size:.76rem;color:var(--text-secondary);line-height:1.7}
+
+/* ── progress ── */
+.progress-wrap{margin-bottom:2rem}
+.progress-labels{display:flex;justify-content:space-between;font-size:.68rem;color:var(--text-muted);margin-bottom:.4rem;letter-spacing:.04em}
+.progress-track{height:3px;background:rgba(255,255,255,.07);border-radius:99px;overflow:hidden}
+.progress-fill{height:100%;background:linear-gradient(90deg,#00d4aa,#0099ff);border-radius:99px;transition:width .5s cubic-bezier(.4,0,.2,1);box-shadow:0 0 8px var(--accent-glow)}
+
+/* ── steps ── */
+.step{display:none;animation:stepIn .38s cubic-bezier(.22,1,.36,1) both}
+.step.active{display:block}
+@keyframes stepIn{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:translateX(0)}}
+.step-heading{font-size:1.18rem;font-weight:700;color:var(--text-primary);margin-bottom:.28rem;line-height:1.3}
+.step-desc{font-size:.78rem;color:var(--text-secondary);margin-bottom:1.6rem;line-height:1.7}
+
+/* ── fields ── */
+.field{margin-bottom:1.35rem}
+.field-label{display:block;font-size:.72rem;font-weight:600;color:var(--text-secondary);margin-bottom:.2rem;letter-spacing:.04em;text-transform:uppercase}
+.field-hint{display:block;font-size:.72rem;color:var(--text-muted);margin-bottom:.5rem;line-height:1.55;font-style:italic}
+.field-error{font-size:.68rem;color:var(--error);margin-top:.28rem;display:none}
+.field-error.show{display:block}
+
+/* ── inputs ── */
+input[type="text"],select,textarea{width:100%;background:var(--input-bg);border:1px solid var(--input-border);border-radius:10px;color:var(--text-primary);font-family:'Poppins',sans-serif;font-size:.88rem;padding:.65rem .9rem;outline:none;transition:all .2s;appearance:none;-webkit-appearance:none}
+input[type="text"]::placeholder{color:var(--text-muted)}
+input[type="text"]:focus,select:focus,textarea:focus{border-color:rgba(0,212,170,.5);box-shadow:0 0 0 3px rgba(0,212,170,.11);background:rgba(255,255,255,.08)}
+select option{background:#0d2035;color:#eef2ff}
+textarea{resize:vertical;min-height:80px;line-height:1.6}
+
+/* ── age slider ── */
+.slider-wrap{display:flex;align-items:center;gap:14px}
+.slider-wrap input[type="range"]{flex:1;-webkit-appearance:none;appearance:none;height:4px;background:rgba(255,255,255,.12);border-radius:99px;outline:none;cursor:pointer}
+.slider-wrap input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:linear-gradient(135deg,#00d4aa,#0099ff);cursor:pointer;box-shadow:0 0 10px var(--accent-glow)}
+.slider-wrap input[type="range"]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:linear-gradient(135deg,#00d4aa,#0099ff);cursor:pointer;border:none;box-shadow:0 0 10px var(--accent-glow)}
+.age-display{min-width:52px;background:var(--accent-dim);border:1px solid rgba(0,212,170,.3);border-radius:8px;padding:.3rem .6rem;font-size:.88rem;font-weight:600;color:var(--accent);text-align:center;flex-shrink:0}
+
+/* ── radio cards ── */
+.radio-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.radio-grid.cols-1{grid-template-columns:1fr}
+.radio-grid.cols-3{grid-template-columns:1fr 1fr 1fr}
+.radio-grid.cols-4{grid-template-columns:1fr 1fr}
+.radio-card{position:relative;cursor:pointer}
+.radio-card input[type="radio"]{position:absolute;opacity:0;width:0;height:0}
+.card-face{display:flex;flex-direction:column;gap:3px;padding:.75rem .9rem;background:var(--input-bg);border:1px solid var(--input-border);border-radius:11px;font-size:.82rem;color:var(--text-secondary);transition:all .2s;line-height:1.4;user-select:none}
+.card-face .cf-top{display:flex;align-items:center;gap:7px;font-weight:500}
+.card-face .cf-sub{font-size:.68rem;color:var(--text-muted);line-height:1.45;padding-left:1.6rem}
+.card-face .icon{font-size:1.05rem;flex-shrink:0}
+.radio-card input:checked + .card-face{background:var(--accent-dim);border-color:var(--accent);color:var(--text-primary);box-shadow:0 0 14px var(--accent-glow)}
+.radio-card input:checked + .card-face .cf-sub{color:rgba(238,242,255,.65)}
+.radio-card:hover .card-face{border-color:rgba(255,255,255,.2);background:rgba(255,255,255,.08)}
+
+/* ── section divider ── */
+.section-divider{margin:1.4rem 0 1.2rem;display:flex;align-items:center;gap:10px}
+.section-divider span{font-size:.65rem;letter-spacing:.1em;color:var(--text-muted);text-transform:uppercase;white-space:nowrap}
+.section-divider::before,.section-divider::after{content:'';flex:1;height:1px;background:var(--divider)}
+
+/* ── autocomplete ── */
+.autocomplete-wrap{position:relative}
+.autocomplete-list{position:absolute;top:calc(100% + 4px);left:0;right:0;background:#0a1f35;border:1px solid rgba(0,212,170,.25);border-radius:10px;z-index:1000;max-height:200px;overflow-y:auto;display:none}
+.autocomplete-list.show{display:block}
+.ac-item{padding:.6rem .85rem;font-size:.8rem;color:var(--text-secondary);cursor:pointer;border-bottom:1px solid rgba(255,255,255,.05);transition:background .15s}
+.ac-item:last-child{border-bottom:none}
+.ac-item:hover{background:rgba(0,212,170,.1);color:var(--text-primary)}
+.ac-item .ac-name{font-weight:500;color:var(--text-primary)}
+.ac-item .ac-addr{font-size:.68rem;color:var(--text-muted);margin-top:2px}
+
+/* ── map ── */
+#locationMap{height:220px;border-radius:12px;border:1px solid rgba(0,212,170,.2);overflow:hidden;margin-top:.5rem;display:none}
+.map-coords{font-size:.72rem;color:var(--accent);text-align:center;margin-top:.4rem;min-height:1em}
+
+/* ── consent note ── */
+.consent-note{display:flex;gap:9px;align-items:flex-start;padding:.85rem 1rem;background:rgba(0,212,170,.06);border:1px solid rgba(0,212,170,.15);border-radius:11px;font-size:.72rem;color:var(--text-secondary);line-height:1.6;margin-bottom:1.1rem}
+.consent-note .ni{flex-shrink:0;font-size:1rem;margin-top:.1rem}
+
+/* ── buttons ── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:.75rem 1.5rem;border-radius:12px;font-family:'Poppins',sans-serif;font-size:.87rem;font-weight:600;cursor:pointer;border:none;outline:none;transition:all .22s cubic-bezier(.22,1,.36,1);letter-spacing:.01em}
+.btn-primary{background:linear-gradient(135deg,#00d4aa,#0088ee);color:#fff;box-shadow:0 4px 22px rgba(0,212,170,.28)}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(0,212,170,.42)}
+.btn-primary:active{transform:translateY(0)}
+.btn-secondary{background:rgba(255,255,255,.055);border:1px solid var(--input-border);color:var(--text-secondary)}
+.btn-secondary:hover{background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.2);color:var(--text-primary);transform:translateY(-1px)}
+.btn-geo{background:rgba(0,212,170,.09);border:1px solid rgba(0,212,170,.28);color:var(--accent);width:100%}
+.btn-geo:hover{background:rgba(0,212,170,.16);box-shadow:0 0 22px rgba(0,212,170,.18);transform:translateY(-2px)}
+.btn-geo.captured{border-color:var(--accent);color:#fff;background:rgba(0,212,170,.14)}
+.btn-row{display:flex;gap:10px;margin-top:1.6rem}
+.btn-row .btn-primary{flex:1}
+
+/* voice */
+.voice-box{background:rgba(0,0,0,.2);border:1px solid var(--input-border);border-radius:12px;padding:1rem 1.1rem;text-align:center;margin-top:.5rem}
+.btn-record{background:rgba(255,107,107,.1);border:1px solid var(--error);color:var(--error);padding:.55rem 1.2rem;border-radius:50px;font-weight:600;display:inline-flex;align-items:center;gap:7px;cursor:pointer;transition:all .3s;font-family:'Poppins',sans-serif;font-size:.82rem}
+.btn-record.recording{animation:pr 1.5s infinite;background:rgba(255,107,107,.2);color:#fff}
+@keyframes pr{0%{box-shadow:0 0 0 0 rgba(255,107,107,.5)}70%{box-shadow:0 0 0 14px transparent}100%{box-shadow:0 0 0 0 transparent}}
+#audio-playback{margin-top:12px;width:100%;display:none;height:34px}
+
+/* ── success ── */
+.success-screen{display:none;text-align:center;padding:1rem 0;animation:stepIn .5s ease both}
+.success-screen.active{display:block}
+.success-icon{width:66px;height:66px;background:linear-gradient(135deg,rgba(0,212,170,.15),rgba(0,153,255,.15));border:2px solid var(--accent);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 1.2rem;font-size:1.9rem;animation:glow 2s ease infinite}
+@keyframes glow{0%,100%{box-shadow:0 0 22px var(--accent-glow)}50%{box-shadow:0 0 42px rgba(0,212,170,.58)}}
+.success-title{font-size:1.22rem;font-weight:700;margin-bottom:.4rem}
+.success-desc{font-size:.8rem;color:var(--text-secondary);margin-bottom:1.5rem;line-height:1.7}
+.json-preview{background:rgba(0,0,0,.42);border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:1rem;font-family:'Courier New',monospace;font-size:.68rem;color:#00d4aa;text-align:left;max-height:240px;overflow-y:auto;white-space:pre;line-height:1.6;margin-bottom:.75rem}
+.json-preview::-webkit-scrollbar{width:4px}
+.json-preview::-webkit-scrollbar-thumb{background:rgba(0,212,170,.3);border-radius:4px}
+
+/* mobile */
+@media(max-width:520px){
+  .glass-card{padding:1.6rem 1.3rem 1.5rem;border-radius:18px}
+  .radio-grid.cols-3,.radio-grid{grid-template-columns:1fr}
+  .radio-grid.cols-4{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+
+<div class="bg-grad"></div>
+<div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div><div class="orb o4"></div>
+
+<div class="glass-card">
+
+  <div class="logo-row">
+    <div class="logo-pill">💊</div>
+    <span class="logo-name">Pilpal</span>
+  </div>
+  <p class="logo-tagline">Smarter medication adherence, built around people like you.</p>
+
+  <div class="form-intro">
+    <div class="form-intro-title">📋 Why this survey matters</div>
+    <div class="form-intro-body">
+      Pilpal is building a spatial intelligence layer for medication adherence App. We're researching <em>why</em> people miss doses, <em>where</em> access gaps exist, and <em>what</em> healthcare workers observe on the ground through their years of experience. Your responses are anonymised, geo-tagged, and fed directly into our research database to inform the product roadmap. This takes about 2 minutes.
+    </div>
+  </div>
+
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-labels">
+      <span id="stepLabel">Step 1 of 3</span>
+      <span id="stepPct">33%</span>
+    </div>
+    <div class="progress-track">
+      <div class="progress-fill" id="progressFill" style="width:33%"></div>
+    </div>
+  </div>
+
+  <div class="step active" id="step-1">
+    <h2 class="step-heading">Please let us know who you are</h2>
+    <p class="step-desc">Selecting your role first ensures the questions you see are relevant to your experience. All fields except role are optional.</p>
+
+    <div class="field">
+      <label class="field-label">Your role in the medication journey</label>
+      <span class="field-hint">This determines which questions follow — pick the one that best describes you today.</span>
+      <div class="radio-grid cols-3">
+        <label class="radio-card">
+          <input type="radio" name="role" value="medication_user">
+          <div class="card-face">
+            <div class="cf-top"><span class="icon">🙋</span> Medication User</div>
+            <div class="cf-sub">I personally take prescribed or OTC medication</div>
+          </div>
+        </label>
+        <label class="radio-card">
+          <input type="radio" name="role" value="caregiver">
+          <div class="card-face">
+            <div class="cf-top"><span class="icon">🤝</span> Caregiver / Family</div>
+            <div class="cf-sub">I manage or monitor someone else's medications</div>
+          </div>
+        </label>
+        <label class="radio-card">
+          <input type="radio" name="role" value="medical_professional">
+          <div class="card-face">
+            <div class="cf-top"><span class="icon">🩺</span> Healthcare Professional</div>
+            <div class="cf-sub">Doctor, nurse, pharmacist or allied health worker</div>
+          </div>
+        </label>
+      </div>
+      <span class="field-error" id="roleError">Please select your role to continue.</span>
+    </div>
+
+    <div class="field">
+      <label class="field-label" for="userName">Your name (Optional)</label>
+      <input type="text" id="userName" placeholder="e.g. Adebayo Johnson">
+    </div>
+
+    <div class="field">
+      <label class="field-label">Please indicate your age range</label>
+      <span class="field-hint">Drag the slider to select your age group.</span>
+      <div class="slider-wrap">
+        <input type="range" id="ageSlider" min="10" max="90" value="30" step="1" oninput="updateAge(this.value)">
+        <div class="age-display" id="ageDisplay">30</div>
+      </div>
+      <span class="field-error" id="ageError">Please select your age.</span>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="goStep1Next()">Continue →</button>
+    </div>
+  </div>
+
+  <div class="step" id="step-2a">
+    <h2 class="step-heading">Your medication experience</h2>
+    <p class="step-desc">These questions help us understand the real friction points in daily adherence. There are no wrong answers — your honesty shapes the product.</p>
+
+    <div class="field">
+      <label class="field-label">What type of condition are you managing?</label>
+      <span class="field-hint">Select the closest match — this helps us categorise adherence patterns by condition type.</span>
+      <div class="radio-grid cols-4">
+        <label class="radio-card"><input type="radio" name="conditionType" value="chronic_ncd">
+          <div class="card-face"><div class="cf-top"><span class="icon">🫀</span> Chronic / NCD</div><div class="cf-sub">Hypertension, diabetes, asthma</div></div>
+        </label>
+        <label class="radio-card"><input type="radio" name="conditionType" value="infection">
+          <div class="card-face"><div class="cf-top"><span class="icon">🦠</span> Infection / Acute</div><div class="cf-sub">Antibiotics, malaria, TB</div></div>
+        </label>
+        <label class="radio-card"><input type="radio" name="conditionType" value="mental_health">
+          <div class="card-face"><div class="cf-top"><span class="icon">🧠</span> Mental Health</div><div class="cf-sub">Antidepressants, mood stabilisers</div></div>
+        </label>
+        <label class="radio-card"><input type="radio" name="conditionType" value="preventive">
+          <div class="card-face"><div class="cf-top"><span class="icon">🛡️</span> Preventive / Vitamins</div><div class="cf-sub">Supplements, contraceptives</div></div>
+        </label>
+      </div>
+      <span class="field-error" id="conditionTypeError">Please select one.</span>
+    </div>
+
+    <div class="field">
+      <label class="field-label">How would you describe your current routine?</label>
+      <span class="field-hint">Complexity is one of the biggest predictors of non-adherence.</span>
+      <div class="radio-grid cols-1">
+        <label class="radio-card"><input type="radio" name="routineComplexity" value="simple">
+          <div class="card-face"><div class="cf-top"><span class="icon">🟢</span> Simple</div><div class="cf-sub">1–2 medications, once daily, no special conditions</div></div>
+        </label>
+        <label class="radio-card"><input type="radio" name="routineComplexity" value="moderate">
+          <div class="card-face"><div class="cf-top"><span class="icon">🟡</span> Moderate</div><div class="cf-sub">Multiple pills, twice or three times daily</div></div>
+        </label>
+        <label class="radio-card"><input type="radio" name="routineComplexity" value="complex">
+          <div class="card-face"><div class="cf-top"><span class="icon">🔴</span> Complex</div><div class="cf-sub">Strict timing windows, food restrictions, or injectables</div></div>
+        </label>
+      </div>
+      <span class="field-error" id="routineComplexityError">Please select one.</span>
+    </div>
+
+    <div class="field">
+      <label class="field-label">My medications are prescribed for…</label>
+      <div class="radio-grid">
+        <label class="radio-card"><input type="radio" name="medDuration" value="short_term">
+          <div class="card-face"><div class="cf-top"><span class="icon">⏱️</span> Short-term course</div><div class="cf-sub">Days or weeks (e.g. antibiotics)</div></div>
+        </label>
+        <label class="radio-card"><input type="radio" name="medDuration" value="long_term">
+          <div class="card-face"><div class="cf-top"><span class="icon">🔁</span> Long-term / Ongoing</div><div class="cf-sub">Months or years (chronic condition)</div></div>
+        </label>
+      </div>
+      <span class="field-error" id="medDurationError">Please select one.</span>
+    </div>
+
+    <div class="field">
+      <label class="field-label">When do you most often miss or forget a dose?</label>
+      <span class="field-hint">Timing data helps us design smarter, non-intrusive reminder windows.</span>
+      <div class="radio-grid cols-4">
+        <label class="radio-card"><input type="radio" name="missTime" value="morning"><div class="card-face"><div class="cf-top"><span class="icon">🌅</span> Morning</div><div class="cf-sub">Rush hour, busy start</div></div></label>
+        <label class="radio-card"><input type="radio" name="missTime" value="midday"><div class="card-face"><div class="cf-top"><span class="icon">☀️</span> Midday</div><div class="cf-sub">Work / school hours</div></div></label>
+        <label class="radio-card"><input type="radio" name="missTime" value="evening"><div class="card-face"><div class="cf-top"><span class="icon">🌆</span> Evening</div><div class="cf-sub">Dinner or commute</div></div></label>
+        <label class="radio-card"><input type="radio" name="missTime" value="night"><div class="card-face"><div class="cf-top"><span class="icon">🌙</span> Night</div><div class="cf-sub">Before bed</div></div></label>
+      </div>
+      <span class="field-error" id="missTimeError">Please select one.</span>
+    </div>
+
+    <div class="field">
+      <label class="field-label">If you're honest — the real reason you miss doses is…</label>
+      <span class="field-hint">Be direct. This data stays anonymous and helps us design for the real problem, not the polite answer.</span>
+      <div class="radio-grid cols-1">
+        <label class="radio-card"><input type="radio" name="missReason" value="forgot"><div class="card-face"><div class="cf-top"><span class="icon">🧠</span> I forget — life is busy</div><div class="cf-sub">No reminder system in place, or I just lose track</div></div></label>
+        <label class="radio-card"><input type="radio" name="missReason" value="felt_better"><div class="card-face"><div class="cf-top"><span class="icon">💪</span> I felt better and stopped</div><div class="cf-sub">Symptoms improved, seemed unnecessary to continue</div></div></label>
+        <label class="radio-card"><input type="radio" name="missReason" value="side_effects"><div class="card-face"><div class="cf-top"><span class="icon">😵</span> Side effects were too hard</div><div class="cf-sub">Nausea, fatigue, dizziness made it difficult to continue</div></div></label>
+        <label class="radio-card"><input type="radio" name="missReason" value="cost"><div class="card-face"><div class="cf-top"><span class="icon">💸</span> Cost or availability</div><div class="cf-sub">Couldn't afford a refill or pharmacy was too far</div></div></label>
+        <label class="radio-card"><input type="radio" name="missReason" value="pill_fatigue"><div class="card-face"><div class="cf-top"><span class="icon">😩</span> Pill fatigue</div><div class="cf-sub">Too many pills, too often — mentally exhausting</div></div></label>
+      </div>
+      <span class="field-error" id="missReasonError">Please select one.</span>
+    </div>
+
+    <div class="field">
+      <label class="field-label">How far is your nearest pharmacy from home?</label>
+      <span class="field-hint">We're building a proximity layer to map access deserts across Nigeria.</span>
+      <div class="radio-grid cols-4">
+        <label class="radio-card"><input type="radio" name="pharmacyDist" value="walk_5"><div class="card-face"><div class="cf-top"><span class="icon">🚶</span> Walk &lt;5 min</div></div></label>
+        <label class="radio-card"><input type="radio" name="pharmacyDist" value="5_15min"><div class="card-face"><div class="cf-top"><span class="icon">🚌</span> 5–15 min</div></div></label>
+        <label class="radio-card"><input type="radio" name="pharmacyDist" value="15_30min"><div class="card-face"><div class="cf-top"><span class="icon">🚗</span> 15–30 min</div></div></label>
+        <label class="radio-card"><input type="radio" name="pharmacyDist" value="over_30min"><div class="card-face"><div class="cf-top"><span class="icon">🗺️</span> Over 30 min</div></div></label>
+      </div>
+      <span class="field-error" id="pharmacyDistError">Please select one.</span>
+    </div>
+
+    <div class="field">
+      <label class="field-label">What kind of reminder would you actually respond to?</label>
+      <span class="field-hint">Pick the feature that would genuinely change your behaviour, not just the polite answer.</span>
+      <div class="radio-grid cols-1">
+        <label class="radio-card"><input type="radio" name="appFeature" value="silent_notif"><div class="card-face"><div class="cf-top"><span class="icon">🔕</span> Silent push notification</div><div class="cf-sub">Private, no sound — I'll check it when I see it</div></div></label>
+        <label class="radio-card"><input type="radio" name="appFeature" value="aggressive_alarm"><div class="card-face"><div class="cf-top"><span class="icon">🔊</span> Aggressive alarm / DND bypass</div><div class="cf-sub">I need to be forced to acknowledge it</div></div></label>
+        <label class="radio-card"><input type="radio" name="appFeature" value="gamified"><div class="card-face"><div class="cf-top"><span class="icon">🎮</span> Gamification — streaks & points</div><div class="cf-sub">A streak I don't want to break keeps me going</div></div></label>
+        <label class="radio-card"><input type="radio" name="appFeature" value="family_alert"><div class="card-face"><div class="cf-top"><span class="icon">👨‍👩‍👧</span> Alert a family member if I miss</div><div class="cf-sub">Accountability to someone I care about works best</div></div></label>
+        <label class="radio-card"><input type="radio" name="appFeature" value="delivery"><div class="card-face"><div class="cf-top"><span class="icon">🚚</span> Refill delivery reminder + ordering</div><div class="cf-sub">Help me never run out in the first place</div></div></label>
+      </div>
+      <span class="field-error" id="appFeatureError">Please select one.</span>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="goBack('step-2a','step-1')">← Back</button>
+      <button class="btn btn-primary" onclick="goStep2Next('medication_user')">Almost Done →</button>
+    </div>
+  </div>
+
+  <div class="step" id="step-2b">
+    <h2 class="step-heading">Managing someone else's care</h2>
+    <p class="step-desc">Caregivers carry an invisible cognitive load. These questions help us build sync tools that reduce that burden for families across Nigeria and beyond.</p>
+
+    <div class="field">
+      <label class="field-label">Who are you primarily managing medications for?</label>
+      <div class="radio-grid cols-4">
+        <label class="radio-card"><input type="radio" name="careTarget" value="parent"><div class="card-face"><div class="cf-top"><span class="icon">👴</span> Parent</div></div></label>
+        <label class="radio-card"><input type="radio" name="careTarget" value="child"><div class="card-face"><div class="cf-top"><span class="icon">🧒</span> Child</div></div></label>
+        <label class="radio-card"><input type="radio" name="careTarget" value="spouse"><div class="card-face"><div class="cf-top"><span class="icon">💑</span> Spouse / Partner</div></div></label>
+        <label class="radio-card"><input type="radio" name="careTarget" value="other_relative"><div class="card-face"><div class="cf-top"><span class="icon">❤️</span> Other relative</div></div></label>
+      </div>
+      <span class="field-error" id="careTargetError">Please select one.</span>
+    </div>
+
+    <div class="field">
+      <label class="field-label">How many people's medications are you currently managing?</label>
+      <div class="radio-grid cols-4">
+        <label class="radio-card"><input type="radio" name="careCount" value="1"><div class="card-face"><div class="cf-top">1 person</div></div></label>
+        <label class="radio-card"><input type="radio" name="careCount" value="2"><div class="card-face"><div class="cf-top">2 people</div></div></label>
+        <label class="radio-card"><input type="radio" name="careCount" value="3"><div class="card-face"><div class="cf-top">3 people</div></div></label>
+        <label class="radio-card"><input type="radio" name="careCount" value="4+"><div class="card-face"><div class="cf-top">4 or more</div></div></label>
+      </div>
+      <span class="field-error" id="careCountError">Please select one.</span>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Do you share the same home as the person you care for?</label>
+      <div class="radio-grid">
+        <label class="radio-card"><input type="radio" name="cohabitation" value="yes"><div class="card-face"><div class="cf-top"><span class="icon">🏠</span> Yes — same household</div></div></label>
+        <label class="radio-card"><input type="radio" name="cohabitation" value="no"><div class="card-face"><div class="cf-top"><span class="icon">📍</span> No — different locations</div></div></label>
+      </div>
+      <span class="field-error" id="cohabitationError">Please select one.</span>
+    </div>
+
+    <div class="field">
+      <label class="field-label">How often is a dose missed despite your efforts?</label>
+      <span class="field-hint">This measures the gap between intention and outcome — a core metric for our platform.</span>
+      <div class="radio-grid cols-4">
+        <label class="radio-card"><input type="radio" name="missFreq" value="never"><div class="card-face"><div class="cf-top">Never</div></div></label>
+        <label class="radio-card"><input type="radio" name="missFreq" value="rarely"><div class="card-face"><div class="cf-top">1–2 times/month</div></div></label>
+        <label class="radio-card"><input type="radio" name="missFreq" value="weekly"><div class="card-face"><div class="cf-top">1–2 times/week</div></div></label>
+        <label class="radio-card"><input type="radio" name="missFreq" value="daily"><div class="card-face"><div class="cf-top">Almost daily</div></div></label>
+      </div>
+      <span class="field-error" id="missFreqError">Please select one.</span>
+    </div>
+
+    <div class="field">
+      <label class="field-label">How do you currently coordinate with the person you care for?</label>
+      <div class="radio-grid cols-4">
+        <label class="radio-card"><input type="radio" name="coordMethod" value="whatsapp"><div class="card-face"><div class="cf-top"><span class="icon">💬</span> WhatsApp</div></div></label>
+        <label class="radio-card"><input type="radio" name="coordMethod" value="phone_call"><div class="card-face"><div class="cf-top"><span class="icon">📞</span> Phone calls</div></div></label>
+        <label class="radio-card"><input type="radio" name="coordMethod" value="in_person"><div class="card-face"><div class="cf-top"><span class="icon">🏠</span> In person only</div></div></label>
+        <label class="radio-card"><input type="radio" name="coordMethod" value="no_system"><div class="card-face"><div class="cf-top"><span class="icon">🤷</span> No system</div></div></label>
+      </div>
+      <span class="field-error" id="coordMethodError">Please select one.</span>
+    </div>
+
+    <div class="field">
+      <label class="field-label">What is the single biggest bottleneck in managing their health?</label>
+      <span class="field-hint">Be specific — this directly informs which features we prioritise first.</span>
+      <div class="radio-grid cols-1">
+        <label class="radio-card"><input type="radio" name="careStruggle" value="tracking_times"><div class="card-face"><div class="cf-top"><span class="icon">⏰</span> Mental load of tracking multiple timings</div><div class="cf-sub">Especially when they take 3+ different medications</div></div></label>
+        <label class="radio-card"><input type="radio" name="careStruggle" value="physical_distance"><div class="card-face"><div class="cf-top"><span class="icon">📍</span> I'm not physically there to verify</div><div class="cf-sub">I'm at work or in another city and have to trust them</div></div></label>
+        <label class="radio-card"><input type="radio" name="careStruggle" value="patient_resistance"><div class="card-face"><div class="cf-top"><span class="icon">😤</span> They resist or refuse</div><div class="cf-sub">Patient pushback — stubbornness, denial, or fear</div></div></label>
+        <label class="radio-card"><input type="radio" name="careStruggle" value="refill_management"><div class="card-face"><div class="cf-top"><span class="icon">💊</span> Staying ahead of refills</div><div class="cf-sub">Realising they've run out only when it's too late</div></div></label>
+      </div>
+      <span class="field-error" id="careStruggleError">Please select one.</span>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="goBack('step-2b','step-1')">← Back</button>
+      <button class="btn btn-primary" onclick="goStep2Next('caregiver')">Almost Done →</button>
+    </div>
+  </div>
+
+  <div class="step" id="step-2c">
+    <h2 class="step-heading">Clinical insights from the frontline</h2>
+    <p class="step-desc">Through your years of experience, you have observed what no dataset can fully capture — the human behaviour behind non-adherence. Your clinical perspective is the most valuable input this survey can receive. We are grateful for your time.</p>
+
+    <div class="field">
+      <label class="field-label">Your facility (Optional)</label>
+      <span class="field-hint">Type to search your hospital, clinic, or pharmacy. Select from suggestions or pin on the map in the next step.</span>
+      <div class="autocomplete-wrap">
+        <input type="text" id="facilityInput" placeholder="e.g. Lagos University Teaching Hospital" oninput="searchFacility(this.value)" autocomplete="off">
+        <div class="autocomplete-list" id="facilityList"></div>
+      </div>
+      <input type="hidden" id="facilityName">
+      <input type="hidden" id="facilityLat">
+      <input type="hidden" id="facilityLng">
+    </div>
+
+    <div class="field">
+      <label class="field-label">Your professional role</label>
+      <span class="field-hint">This helps us weight responses appropriately when aggregating clinical data.</span>
+      <select id="medField">
+        <option value="" disabled selected>Select your specialty or role</option>
+        <option value="gp">Medical Doctor — General Practice</option>
+        <option value="specialist">Medical Doctor — Specialist</option>
+        <option value="nurse">Nurse / Nursing Officer</option>
+        <option value="pharmacist">Pharmacist / Pharmacy Technician</option>
+        <option value="community_health">Community Health Extension Worker (CHEW)</option>
+        <option value="other_health">Other Allied Health Professional</option>
+      </select>
+      <span class="field-error" id="medFieldError">Please select your role.</span>
+    </div>
+
+    <div class="field">
+      <label class="field-label">In your clinical experience, what percentage of patients complete their full dosage?</label>
+      <span class="field-hint">Based on your honest observation over the years — not textbook benchmarks.</span>
+      <div class="radio-grid cols-4">
+        <label class="radio-card"><input type="radio" name="adherenceRate" value="under_30"><div class="card-face"><div class="cf-top">Under 30%</div></div></label>
+        <label class="radio-card"><input type="radio" name="adherenceRate" value="30_60"><div class="card-face"><div class="cf-top">30% – 60%</div></div></label>
+        <label class="radio-card"><input type="radio" name="adherenceRate" value="60_80"><div class="card-face"><div class="cf-top">60% – 80%</div></div></label>
+        <label class="radio-card"><input type="radio" name="adherenceRate" value="over_80"><div class="card-face"><div class="cf-top">Over 80%</div></div></label>
+      </div>
+      <span class="field-error" id="adherenceRateError">Please select one.</span>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Which category of medication, in your experience, sees the highest abandonment?</label>
+      <span class="field-hint">This allows us to segment adherence risk by drug class in the database.</span>
+      <div class="radio-grid cols-4">
+        <label class="radio-card"><input type="radio" name="abandonType" value="antibiotics"><div class="card-face"><div class="cf-top">Antibiotics</div></div></label>
+        <label class="radio-card"><input type="radio" name="abandonType" value="chronic"><div class="card-face"><div class="cf-top">Chronic NCD</div><div class="cf-sub">BP, diabetes, etc.</div></div></label>
+        <label class="radio-card"><input type="radio" name="abandonType" value="mental_health"><div class="card-face"><div class="cf-top">Psychiatric meds</div></div></label>
+        <label class="radio-card"><input type="radio" name="abandonType" value="hiv_tb"><div class="card-face"><div class="cf-top">HIV / TB regimen</div></div></label>
+      </div>
+      <span class="field-error" id="abandonTypeError">Please select one.</span>
+    </div>
+
+    <div class="field">
+      <label class="field-label">At what point do patients most commonly abandon their regimen?</label>
+      <span class="field-hint">Your pattern recognition here is invaluable — this informs our intervention timing algorithm.</span>
+      <div class="radio-grid cols-1">
+        <label class="radio-card"><input type="radio" name="abandonPoint" value="within_days"><div class="card-face"><div class="cf-top"><span class="icon">📅</span> Within the first few days</div><div class="cf-sub">Often before any therapeutic benefit is felt</div></div></label>
+        <label class="radio-card"><input type="radio" name="abandonPoint" value="after_symptom_relief"><div class="card-face"><div class="cf-top"><span class="icon">✅</span> Once symptoms improve</div><div class="cf-sub">"I felt better so I stopped" — the most common pattern</div></div></label>
+        <label class="radio-card"><input type="radio" name="abandonPoint" value="weeks_in"><div class="card-face"><div class="cf-top"><span class="icon">📆</span> Several weeks into the regimen</div><div class="cf-sub">Fatigue sets in, especially for long-term regimens</div></div></label>
+        <label class="radio-card"><input type="radio" name="abandonPoint" value="cost_barrier"><div class="card-face"><div class="cf-top"><span class="icon">💸</span> When the cost barrier hits</div><div class="cf-sub">First or subsequent refills become unaffordable</div></div></label>
+        <label class="radio-card"><input type="radio" name="abandonPoint" value="side_effects_peak"><div class="card-face"><div class="cf-top"><span class="icon">🤒</span> When side effects peak</div><div class="cf-sub">Especially in the first 2 weeks of a new prescription</div></div></label>
+      </div>
+      <span class="field-error" id="abandonPointError">Please select one.</span>
+    </div>
+
+    <div class="field">
+      <label class="field-label">In your observation, what single factor most contributes to non-adherence in your patient population?</label>
+      <span class="field-hint">Your frontline insight cuts through assumptions. We want your honest, unfiltered observation.</span>
+      <div class="radio-grid cols-1">
+        <label class="radio-card"><input type="radio" name="rootCause" value="low_health_literacy"><div class="card-face"><div class="cf-top"><span class="icon">📖</span> Low health literacy</div><div class="cf-sub">Patients don't understand why the full course matters</div></div></label>
+        <label class="radio-card"><input type="radio" name="rootCause" value="poverty_access"><div class="card-face"><div class="cf-top"><span class="icon">💸</span> Financial or geographic barriers</div><div class="cf-sub">Poverty, transport cost, or pharmacy distance</div></div></label>
+        <label class="radio-card"><input type="radio" name="rootCause" value="no_follow_up"><div class="card-face"><div class="cf-top"><span class="icon">📵</span> No follow-up system</div><div class="cf-sub">Once discharged, there is no check-in mechanism</div></div></label>
+        <label class="radio-card"><input type="radio" name="rootCause" value="social_stigma"><div class="card-face"><div class="cf-top"><span class="icon">🤫</span> Social stigma</div><div class="cf-sub">Especially for HIV, psychiatric, or chronic medications</div></div></label>
+        <label class="radio-card"><input type="radio" name="rootCause" value="forgetfulness"><div class="card-face"><div class="cf-top"><span class="icon">🧠</span> Pure forgetfulness</div><div class="cf-sub">No malice — simply no reminder infrastructure</div></div></label>
+      </div>
+      <span class="field-error" id="rootCauseError">Please select one.</span>
+    </div>
+
+    <div class="field">
+      <label class="field-label">How likely would you be to recommend a digital adherence tool to your patients?</label>
+      <span class="field-hint">Your willingness to recommend is the strongest signal of clinical utility we can measure.</span>
+      <div class="radio-grid cols-4">
+        <label class="radio-card"><input type="radio" name="recommendLikelihood" value="very_likely"><div class="card-face"><div class="cf-top">Very likely</div></div></label>
+        <label class="radio-card"><input type="radio" name="recommendLikelihood" value="likely"><div class="card-face"><div class="cf-top">Likely</div></div></label>
+        <label class="radio-card"><input type="radio" name="recommendLikelihood" value="unsure"><div class="card-face"><div class="cf-top">Unsure</div></div></label>
+        <label class="radio-card"><input type="radio" name="recommendLikelihood" value="unlikely"><div class="card-face"><div class="cf-top">Unlikely</div></div></label>
+      </div>
+      <span class="field-error" id="recommendLikelihoodError">Please select one.</span>
+    </div>
+
+    <div class="field">
+      <label class="field-label">For a tool to earn your recommendation, it must…</label>
+      <span class="field-hint">Select the one feature that would move the needle in your professional opinion.</span>
+      <div class="radio-grid cols-1">
+        <label class="radio-card"><input type="radio" name="toolMustHave" value="clinical_report"><div class="card-face"><div class="cf-top"><span class="icon">📊</span> Give me clinical adherence reports per patient</div><div class="cf-sub">I want to see who is and isn't complying before their appointment</div></div></label>
+        <label class="radio-card"><input type="radio" name="toolMustHave" value="simple_enough"><div class="card-face"><div class="cf-top"><span class="icon">📱</span> Be simple enough for low-literacy patients</div><div class="cf-sub">If they can use WhatsApp, they should be able to use this</div></div></label>
+        <label class="radio-card"><input type="radio" name="toolMustHave" value="no_data"><div class="card-face"><div class="cf-top"><span class="icon">📵</span> Work without mobile data</div><div class="cf-sub">USSD or SMS fallback for areas with poor connectivity</div></div></label>
+        <label class="radio-card"><input type="radio" name="toolMustHave" value="refill_alerts"><div class="card-face"><div class="cf-top"><span class="icon">💊</span> Automatically alert patients before they run out</div><div class="cf-sub">Proactive refill management tied to the prescription</div></div></label>
+      </div>
+      <span class="field-error" id="toolMustHaveError">Please select one.</span>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="goBack('step-2c','step-1')">← Back</button>
+      <button class="btn btn-primary" onclick="goStep2Next('medical_professional')">Almost Done →</button>
+    </div>
+  </div>
+
+  <div class="step" id="step-3">
+    <h2 class="step-heading">Final context & location</h2>
+    <p class="step-desc">Add any free-form comments, tag your approximate location for the access heatmap, and submit. Your data will be anonymised before storage.</p>
+
+    <div class="field">
+      <label class="field-label" for="textComment">Anything else you want us to know? (Optional)</label>
+      <span class="field-hint">Your specific experience — a moment when medication access failed you or your patient — is exactly the context that shapes our roadmap.</span>
+      <textarea id="textComment" placeholder="Describe a specific situation where the system failed you or your patient..."></textarea>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Voice note (Optional)</label>
+      <span class="field-hint">If it's easier to talk than type, record a short voice note. It will be transcribed and anonymised.</span>
+      <div class="voice-box">
+        <button type="button" class="btn-record" id="recordBtn" onclick="toggleRecording()">
+          <span id="recordIcon">🔴</span><span id="recordText">Tap to Record</span>
+        </button>
+        <audio id="audio-playback" controls></audio>
+      </div>
+    </div>
+
+    <div id="location-section" style="display: none;">
+      <div class="section-divider"><span>📍 Location tagging</span></div>
+
+      <div class="field">
+        <label class="field-label">Search or pin your location on the map</label>
+        <span class="field-hint">Type an area, hospital, or landmark below. If it doesn't appear in suggestions, simply click on the map to drop a pin at your location.</span>
+        <div class="autocomplete-wrap" style="margin-bottom:8px">
+          <input type="text" id="mapSearchInput" placeholder="e.g. Surulere, Lagos or Lagos Island General Hospital" oninput="searchMapLocation(this.value)" autocomplete="off">
+          <div class="autocomplete-list" id="mapSearchList"></div>
+        </div>
+        <div id="locationMap"></div>
+        <div class="map-coords" id="mapCoords">No pin placed yet</div>
+      </div>
+
+      <div class="consent-note">
+        <span class="ni">🔒</span>
+        <span>Your precise coordinates are never stored. We snap them to a 1km² grid cell before writing to the database. This map data is used exclusively for Pilpal's medication access coverage analysis and will never be sold or shared with third parties.</span>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-secondary" id="backBtn3" onclick="goBackStep3()">← Back</button>
+      <button class="btn btn-primary" onclick="handleSubmit()">Submit to Data Pipeline →</button>
+    </div>
+  </div>
+
+  <div class="success-screen" id="success">
+    <div class="success-icon">✓</div>
+    <h2 class="success-title">Response captured. Thank you.</h2>
+    <p class="success-desc">Your data has been structured and is ready for the Pilpal PostGIS database. If you're a healthcare professional, consider sharing this survey link with colleagues — every response sharpens the map.</p>
+    <div class="json-preview" id="jsonOutput"></div>
+    <p style="font-size:.68rem;color:var(--text-muted);text-align:center;margin-top:.5rem">↑ Structured payload logged to console — PostGIS/Supabase ready</p>
+  </div>
+
+</div>
+
+<script>
+let userData = {};
+let currentRole = '';
+let previousStep2 = '';
+let geoCoords = null;
+let mediaRecorder, audioChunks=[], isRecording=false, audioBase64=null;
+let leafletMap=null, mapMarker=null;
+let facilitySelected = null;
+let acDebounce=null, mapDebounce=null;
+
+/* ── age slider ── */
+function updateAge(v){ document.getElementById('ageDisplay').textContent = v; }
+
+/* ── progress ── */
+function setProgress(pct,label){
+  document.getElementById('progressFill').style.width=pct+'%';
+  document.getElementById('stepPct').textContent=pct+'%';
+  document.getElementById('stepLabel').textContent=label;
+}
+
+/* ── show step ── */
+function showStep(id){
+  document.querySelectorAll('.step').forEach(s=>s.classList.remove('active'));
+  const el=document.getElementById(id);
+  if(el){el.classList.add('active');void el.offsetWidth;}
+  
+  // Only trigger the map engine if the user is a medical professional and on step 3
+  if(id==='step-3' && currentRole === 'medical_professional') initMap();
+}
+
+function getRadio(name){
+  const el=document.querySelector(`input[name="${name}"]:checked`);
+  return el?el.value:null;
+}
+function showErr(id){document.getElementById(id).classList.add('show');}
+function clearErr(id){document.getElementById(id).classList.remove('show');}
+
+/* ── step 1 ── */
+function goStep1Next(){
+  const role=getRadio('role');
+  let valid=true;
+  if(!role){showErr('roleError');valid=false;}else clearErr('roleError');
+  if(!valid)return;
+  userData.name=document.getElementById('userName').value||'Anonymous';
+  userData.age=parseInt(document.getElementById('ageSlider').value);
+  userData.role=role;
+  currentRole=role;
+
+  // Show/hide the location wrapper based on role
+  if(role === 'medical_professional'){
+    document.getElementById('location-section').style.display = 'block';
+  } else {
+    document.getElementById('location-section').style.display = 'none';
+  }
+
+  if(role==='medication_user'){previousStep2='step-2a';showStep('step-2a');}
+  else if(role==='caregiver'){previousStep2='step-2b';showStep('step-2b');}
+  else{previousStep2='step-2c';showStep('step-2c');}
+  setProgress(66,'Step 2 of 3');
+}
+
+/* ── step 2 next ── */
+function goStep2Next(role){
+  let valid=true;
+  if(role==='medication_user'){
+    const checks={conditionType:'conditionTypeError',routineComplexity:'routineComplexityError',medDuration:'medDurationError',missTime:'missTimeError',missReason:'missReasonError',pharmacyDist:'pharmacyDistError',appFeature:'appFeatureError'};
+    const vals={};
+    for(const[k,errId] of Object.entries(checks)){
+      const v=getRadio(k);
+      if(!v){showErr(errId);valid=false;}else{clearErr(errId);vals[k]=v;}
+    }
+    if(!valid)return;
+    userData.role_data={type:'medication_user',condition_type:vals.conditionType,routine_complexity:vals.routineComplexity,med_duration:vals.medDuration,miss_time_of_day:vals.missTime,miss_reason:vals.missReason,pharmacy_distance:vals.pharmacyDist,preferred_feature:vals.appFeature};
+  } else if(role==='caregiver'){
+    const checks={careTarget:'careTargetError',careCount:'careCountError',cohabitation:'cohabitationError',missFreq:'missFreqError',coordMethod:'coordMethodError',careStruggle:'careStruggleError'};
+    const vals={};
+    for(const[k,errId] of Object.entries(checks)){
+      const v=getRadio(k);
+      if(!v){showErr(errId);valid=false;}else{clearErr(errId);vals[k]=v;}
+    }
+    if(!valid)return;
+    userData.role_data={type:'caregiver',care_for:vals.careTarget,people_managed:vals.careCount,cohabitation:vals.cohabitation,miss_frequency:vals.missFreq,coord_method:vals.coordMethod,main_struggle:vals.careStruggle};
+  } else {
+    const mf=document.getElementById('medField').value;
+    const checks={adherenceRate:'adherenceRateError',abandonType:'abandonTypeError',abandonPoint:'abandonPointError',rootCause:'rootCauseError',recommendLikelihood:'recommendLikelihoodError',toolMustHave:'toolMustHaveError'};
+    const vals={};
+    if(!mf){showErr('medFieldError');valid=false;}else clearErr('medFieldError');
+    for(const[k,errId] of Object.entries(checks)){
+      const v=getRadio(k);
+      if(!v){showErr(errId);valid=false;}else{clearErr(errId);vals[k]=v;}
+    }
+    if(!valid)return;
+    userData.role_data={type:'medical_professional',facility:facilitySelected||{name:document.getElementById('facilityInput').value||null,lat:null,lng:null},professional_role:mf,adherence_rate_estimate:vals.adherenceRate,highest_abandon_drug_class:vals.abandonType,typical_abandon_point:vals.abandonPoint,primary_root_cause:vals.rootCause,recommend_likelihood:vals.recommendLikelihood,tool_must_have:vals.toolMustHave};
+  }
+  showStep('step-3');
+  setProgress(100,'Final Step');
+}
+
+function goBack(from,to){showStep(to);setProgress(33,'Step 1 of 3');}
+function goBackStep3(){showStep(previousStep2);setProgress(66,'Step 2 of 3');}
+
+/* ── facility autocomplete (Nominatim) ── */
+function searchFacility(q){
+  clearTimeout(acDebounce);
+  const list=document.getElementById('facilityList');
+  if(q.length<3){list.classList.remove('show');return;}
+  acDebounce=setTimeout(async()=>{
+    try{
+      const res=await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&countrycodes=ng&format=json&limit=5&addressdetails=1`,{headers:{'Accept-Language':'en'}});
+      const data=await res.json();
+      list.innerHTML='';
+      if(!data.length){list.classList.remove('show');return;}
+      data.forEach(item=>{
+        const d=document.createElement('div');
+        d.className='ac-item';
+        const name=item.display_name.split(',')[0];
+        const addr=item.display_name.split(',').slice(1,3).join(',').trim();
+        d.innerHTML=`<div class="ac-name">${name}</div><div class="ac-addr">${addr}</div>`;
+        d.onclick=()=>{
+          document.getElementById('facilityInput').value=item.display_name.split(',')[0];
+          facilitySelected={name:item.display_name.split(',')[0],full_address:item.display_name,lat:parseFloat(item.lat),lng:parseFloat(item.lon)};
+          list.classList.remove('show');
+        };
+        list.appendChild(d);
+      });
+      list.classList.add('show');
+    }catch(e){list.classList.remove('show');}
+  },350);
+}
+
+/* ── map search (Nominatim) ── */
+function searchMapLocation(q){
+  clearTimeout(mapDebounce);
+  const list=document.getElementById('mapSearchList');
+  if(q.length<3){list.classList.remove('show');return;}
+  mapDebounce=setTimeout(async()=>{
+    try{
+      const res=await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5&addressdetails=1`,{headers:{'Accept-Language':'en'}});
+      const data=await res.json();
+      list.innerHTML='';
+      if(!data.length){list.classList.remove('show');return;}
+      data.forEach(item=>{
+        const d=document.createElement('div');
+        d.className='ac-item';
+        const name=item.display_name.split(',')[0];
+        const addr=item.display_name.split(',').slice(1,3).join(',').trim();
+        d.innerHTML=`<div class="ac-name">${name}</div><div class="ac-addr">${addr}</div>`;
+        d.onclick=()=>{
+          const lat=parseFloat(item.lat),lng=parseFloat(item.lon);
+          placeMapPin(lat,lng,item.display_name.split(',')[0]);
+          leafletMap.setView([lat,lng],14);
+          list.classList.remove('show');
+          document.getElementById('mapSearchInput').value=item.display_name.split(',')[0];
+        };
+        list.appendChild(d);
+      });
+      list.classList.add('show');
+    }catch(e){list.classList.remove('show');}
+  },350);
+}
+
+/* ── map ── */
+function initMap(){
+  if(leafletMap)return;
+  const mapEl=document.getElementById('locationMap');
+  mapEl.style.display='block';
+  leafletMap=L.map('locationMap',{zoomControl:true}).setView([6.5244,3.3792],11);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'© OpenStreetMap © CARTO',maxZoom:19}).addTo(leafletMap);
+  leafletMap.on('click',e=>placeMapPin(e.latlng.lat,e.latlng.lng,'Custom pin'));
+  // try browser geolocation silently
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(pos=>{
+      placeMapPin(pos.coords.latitude,pos.coords.longitude,'Your location');
+      leafletMap.setView([pos.coords.latitude,pos.coords.longitude],13);
+    },()=>{});
+  }
+}
+
+function placeMapPin(lat,lng,label){
+  if(mapMarker)leafletMap.removeLayer(mapMarker);
+  mapMarker=L.circleMarker([lat,lng],{radius:9,fillColor:'#00d4aa',color:'#fff',weight:2,fillOpacity:0.95}).addTo(leafletMap);
+  mapMarker.bindPopup(`<b style="font-family:Poppins;font-size:12px">${label}</b><br><small>${lat.toFixed(5)}, ${lng.toFixed(5)}</small>`).openPopup();
+  geoCoords={latitude:parseFloat(lat.toFixed(6)),longitude:parseFloat(lng.toFixed(6)),accuracy_m:null,label:label};
+  document.getElementById('mapCoords').textContent=`📍 ${lat.toFixed(5)}, ${lng.toFixed(5)} — ${label}`;
+}
+
+/* ── voice ── */
+async function toggleRecording(){
+  const btn=document.getElementById('recordBtn');
+  const rText=document.getElementById('recordText');
+  const rIcon=document.getElementById('recordIcon');
+  const playback=document.getElementById('audio-playback');
+  if(!isRecording){
+    try{
+      const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+      mediaRecorder=new MediaRecorder(stream);audioChunks=[];
+      mediaRecorder.ondataavailable=e=>{if(e.data.size>0)audioChunks.push(e.data);};
+      mediaRecorder.onstop=()=>{
+        const blob=new Blob(audioChunks,{type:'audio/webm'});
+        playback.src=URL.createObjectURL(blob);playback.style.display='block';
+        const reader=new FileReader();reader.readAsDataURL(blob);
+        reader.onloadend=()=>{audioBase64=reader.result;};
+      };
+      mediaRecorder.start();isRecording=true;
+      btn.classList.add('recording');rText.textContent='Recording — tap to stop';rIcon.textContent='⏹️';
+      playback.style.display='none';
+    }catch(e){alert('Microphone access denied.');}
+  } else {
+    mediaRecorder.stop();mediaRecorder.stream.getTracks().forEach(t=>t.stop());
+    isRecording=false;btn.classList.remove('recording');
+    rText.textContent='Re-record voice note';rIcon.textContent='🔴';
+  }
+}
+
+/* ── submit ── */
+function handleSubmit(){
+  const ts=new Date().toISOString();
+  
+  // If the location section was hidden (i.e. not a medical pro), ensure geoCoords is null
+  if(currentRole !== 'medical_professional') geoCoords = null;
+
+  const payload={
+    meta:{form_version:'3.0.0',submitted_at:ts,source:'pilpal_research_survey'},
+    respondent:{name:userData.name,age:userData.age,role:userData.role},
+    role_data:userData.role_data||null,
+    qualitative:{
+      text_comment:document.getElementById('textComment').value||null,
+      voice_note_attached:!!audioBase64,
+      voice_note_base64:audioBase64||null
+    },
+    location:geoCoords?{
+      latitude:geoCoords.latitude,
+      longitude:geoCoords.longitude,
+      accuracy_m:geoCoords.accuracy_m,
+      label:geoCoords.label||null,
+      postgis_geom:`POINT(${geoCoords.longitude} ${geoCoords.latitude})`,
+      grid_1km:`POINT(${(Math.round(geoCoords.longitude*100)/100).toFixed(2)} ${(Math.round(geoCoords.latitude*100)/100).toFixed(2)})`
+    }:null
+  };
+  console.log('%c[Pilpal v3] Data Pipeline Payload','color:#00d4aa;font-size:14px;font-weight:bold');
+  console.log(JSON.stringify(payload,null,2));
+  document.getElementById('progressWrap').style.display='none';
+  document.querySelectorAll('.step').forEach(s=>s.classList.remove('active'));
+  const suc=document.getElementById('success');suc.classList.add('active');
+  document.getElementById('jsonOutput').textContent=JSON.stringify(payload,null,2);
+}
+
+/* ── clear errors on change ── */
+document.querySelectorAll('input[type="radio"]').forEach(r=>{
+  r.addEventListener('change',()=>{
+    const map={role:'roleError',conditionType:'conditionTypeError',routineComplexity:'routineComplexityError',medDuration:'medDurationError',missTime:'missTimeError',missReason:'missReasonError',pharmacyDist:'pharmacyDistError',appFeature:'appFeatureError',careTarget:'careTargetError',careCount:'careCountError',cohabitation:'cohabitationError',missFreq:'missFreqError',coordMethod:'coordMethodError',careStruggle:'careStruggleError',adherenceRate:'adherenceRateError',abandonType:'abandonTypeError',abandonPoint:'abandonPointError',rootCause:'rootCauseError',recommendLikelihood:'recommendLikelihoodError',toolMustHave:'toolMustHaveError'};
+    const id=map[r.getAttribute('name')];
+    if(id)clearErr(id);
+  });
+});
+document.getElementById('medField').addEventListener('change',()=>clearErr('medFieldError'));
+
+/* close autocomplete on outside click */
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.autocomplete-wrap')){
+    document.querySelectorAll('.autocomplete-list').forEach(l=>l.classList.remove('show'));
+  }
+});
+</script>
+</body>
+</html>
